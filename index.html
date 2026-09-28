@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dota 2 Coach</title>
+<meta name="description" content="Turn any Dota 2 match ID into a personalized coaching report, right inside Claude.">
+<style>
+  :root {
+    --bg: #0f1115;
+    --bg-panel: #171a21;
+    --border: #262b36;
+    --text: #e8eaed;
+    --text-dim: #9aa2b1;
+    --accent: #e14eca;
+    --accent-2: #7c5cff;
+    --radiant: #66c85f;
+    --dire: #d9534f;
+    --code-bg: #0b0d11;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f7fb;
+      --bg-panel: #ffffff;
+      --border: #e3e6ee;
+      --text: #1a1d23;
+      --text-dim: #5b6270;
+      --accent: #c2278f;
+      --accent-2: #5b3fd9;
+      --radiant: #2f8f2a;
+      --dire: #b3392f;
+      --code-bg: #eef0f6;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    padding: 0 20px 60px;
+  }
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  header {
+    padding: 64px 0 32px;
+    text-align: center;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    border-radius: 999px;
+    margin-bottom: 24px;
+  }
+  .badge .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--radiant);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--radiant) 25%, transparent);
+  }
+  h1 {
+    font-size: clamp(32px, 6vw, 44px);
+    line-height: 1.1;
+    margin: 0 0 14px;
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .tagline {
+    font-size: 17px;
+    color: var(--text-dim);
+    max-width: 520px;
+    margin: 0 auto;
+    line-height: 1.5;
+  }
+  .cta-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 28px;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary {
+    background: var(--text);
+    color: var(--bg);
+    border-color: var(--text);
+  }
+  .btn-secondary {
+    background: var(--bg-panel);
+    color: var(--text);
+  }
+  .btn-secondary:hover { border-color: var(--accent-2); }
+  .btn-coffee {
+    background: #ffdd00;
+    color: #1a1d23;
+    border-color: #ffdd00;
+  }
+  section {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 28px 30px;
+    margin-top: 20px;
+  }
+  section h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    margin: 0 0 18px;
+  }
+  .features {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+  }
+  .features li {
+    font-size: 14px;
+    color: var(--text);
+    padding-left: 20px;
+    position: relative;
+  }
+  .features li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 7px;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  .steps {
+    counter-reset: step;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .steps li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 38px;
+    margin-bottom: 20px;
+  }
+  .steps li:last-child { margin-bottom: 0; }
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .steps h3 {
+    margin: 2px 0 6px;
+    font-size: 15px;
+  }
+  .steps p {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    margin: 10px 0 0;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  .example {
+    margin-top: 10px;
+    font-size: 14px;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+  .example strong {
+    color: var(--text);
+    font-style: normal;
+  }
+  footer {
+    text-align: center;
+    margin-top: 40px;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.8;
+  }
+  footer a {
+    color: var(--text-dim);
+    text-decoration: underline;
+    text-decoration-color: var(--border);
+    text-underline-offset: 3px;
+  }
+  footer a:hover { color: var(--text); }
+  .icon { width: 16px; height: 16px; flex: none; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="badge"><span class="dot"></span> MCP server live</div>
+      <h1>Dota 2 Coach</h1>
+      <p class="tagline">
+        Give Claude a Dota 2 match ID. Get back a real coaching report:
+        laning, farming, deaths, itemization, objectives, teamfights, and
+        benchmark percentiles vs. your rank bracket.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://github.com/gilangwinduasmara/dota2-coach">
+          <svg class="icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          View on GitHub
+        </a>
+        <a class="btn btn-coffee" href="https://buymeacoffee.com/gilangwinduasmara">
+          ☕ Buy me a coffee
+        </a>
+      </div>
+    </header>
+
+    <section>
+      <h2>What you get</h2>
+      <ul class="features">
+        <li>Laning phase breakdown</li>
+        <li>Farm pattern &amp; timelines</li>
+        <li>Death log analysis</li>
+        <li>Itemization &amp; skill build</li>
+        <li>Rune control</li>
+        <li>Objectives &amp; teamfights</li>
+        <li>Benchmark percentiles</li>
+        <li>Full-match rating tables</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Install</h2>
+      <ol class="steps">
+        <li>
+          <h3>Add the marketplace</h3>
+          <p>In Claude Code, Claude Desktop, or claude.ai:</p>
+          <pre><code>/plugin marketplace add gilangwinduasmara/dota2-coach</code></pre>
+        </li>
+        <li>
+          <h3>Install the plugin</h3>
+          <pre><code>/plugin install dota2-coach@dota2-coach</code></pre>
+          <p style="margin-top:8px">
+            This registers the coaching skill and the <code>analyze_dota2_match</code>
+            tool automatically, no local setup, no API keys.
+          </p>
+        </li>
+        <li>
+          <h3>Ask Claude to review a match</h3>
+          <p class="example">
+            <strong>“Can you review this game for me?
+            https://www.dotabuff.com/matches/7891234567”</strong>
+          </p>
+        </li>
+      </ol>
+    </section>
+
+    <footer>
+      This page is served by the open-source MCP server behind the plugin.<br>
+      Skill/plugin source: <a href="https://github.com/gilangwinduasmara/dota2-coach">gilangwinduasmara/dota2-coach</a>
+      · Match data from <a href="https://www.opendota.com/">OpenDota</a>
+      · MIT licensed
+    </footer>
+  </div>
+</body>
+</html>
