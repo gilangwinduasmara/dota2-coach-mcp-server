@@ -18,7 +18,6 @@
 const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
-const { randomUUID } = require('crypto');
 const { z } = require('zod');
 const { analyzeMatch, AnalyzeError } = require('./lib/analyze');
 
@@ -89,45 +88,34 @@ async function runHttp() {
 
   const port = Number(process.env.PORT) || 8787;
 
-  // Stateful mode: each initialize gets its own server+transport, tracked by
-  // the MCP session id header so a client's follow-up requests reuse it.
-  const sessions = new Map();
-
+  // Stateless mode (the SDK's own recommended pattern for simple tool-calling
+  // servers like this one): a fresh server+transport per request, no session
+  // bookkeeping. `analyze_dota2_match` is a single self-contained call every
+  // time, so there's no cross-request state to preserve, and no session-id
+  // Map that can go stale across restarts or multi-instance deploys.
   app.post('/mcp', async (req, res) => {
-    const sessionId = req.headers['mcp-session-id'];
-    let transport = sessionId && sessions.get(sessionId);
-
-    if (!transport) {
-      const isInit = req.body && req.body.method === 'initialize';
-      if (!isInit) {
-        res.status(400).json({ jsonrpc: '2.0', error: { code: -32000, message: 'No valid session; send an initialize request first.' }, id: null });
-        return;
-      }
+    try {
       const server = createServer();
-      transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        onsessioninitialized: (id) => sessions.set(id, transport),
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+      res.on('close', () => {
+        transport.close();
+        server.close();
       });
-      transport.onclose = () => {
-        if (transport.sessionId) sessions.delete(transport.sessionId);
-      };
       await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (err) {
+      console.error('Error handling MCP request:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal server error' }, id: null });
+      }
     }
-
-    await transport.handleRequest(req, res, req.body);
   });
 
-  const handleSessionReq = async (req, res) => {
-    const sessionId = req.headers['mcp-session-id'];
-    const transport = sessionId && sessions.get(sessionId);
-    if (!transport) {
-      res.status(400).send('No valid session');
-      return;
-    }
-    await transport.handleRequest(req, res);
+  const methodNotAllowed = (req, res) => {
+    res.status(405).json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed.' }, id: null });
   };
-  app.get('/mcp', handleSessionReq);
-  app.delete('/mcp', handleSessionReq);
+  app.get('/mcp', methodNotAllowed);
+  app.delete('/mcp', methodNotAllowed);
 
   app.listen(port, () => {
     console.error(`Dota 2 Coach MCP server listening on http://localhost:${port}/mcp`);
