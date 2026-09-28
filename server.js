@@ -89,6 +89,7 @@ async function runHttp() {
   // Landing page at the root, so the domain isn't a bare 404 for anyone who
   // visits it directly; the MCP endpoint itself stays at /mcp below.
   app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+  app.use('/fonts', express.static(path.join(__dirname, 'fonts')));
 
   app.use(express.json());
 
